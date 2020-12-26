@@ -132,7 +132,7 @@
      <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
     </property>
    </widget>
-   <widget class="QLabel" name="label_Coin2_1">
+   <widget class="QLabel" name="label_Coin2">
     <property name="geometry">
      <rect>
       <x>0</x>
