@@ -23,6 +23,8 @@ class MainUi(QtWidgets.QMainWindow):
 		self.pushButton_intr.clicked.connect(self.pushButton_intr_onClick)
 		self.pushButton_extr.clicked.connect(self.pushButton_extr_onClick)
 		self.pushButton_Dist.clicked.connect(self.pushButton_Dist_onClick)
+		self.pushButton_AR.clicked.connect(self.pushButton_AR_onClick)
+		self.pushButton_DisMap.clicked.connect(self.pushButton_DisMap_onClick)
 
 	#1.1 draw contour
 	@QtCore.pyqtSlot()
@@ -79,6 +81,8 @@ class MainUi(QtWidgets.QMainWindow):
 		objp = np.zeros((8*11,3), np.float32)
 		objp[:,:2] = np.mgrid[0:11,0:8].T.reshape(-1,2)
 		for i in range(1,16):
+			ret = []
+			corners = []
 			filename = './Datasets/Q2_Image/' + str(i) + '.bmp'
 			img = cv2.imread(filename)
 			gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
@@ -90,8 +94,6 @@ class MainUi(QtWidgets.QMainWindow):
 		ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1],None,None)
 		print('Intrinsic matrix:')
 		print(mtx)
-
-
 
 	#2.3 find extrinsic
 	@QtCore.pyqtSlot()
@@ -142,6 +144,89 @@ class MainUi(QtWidgets.QMainWindow):
 		ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1],None,None)
 		print('Distortion matrix:')
 		print(dist)
+
+	#3 AR
+	@QtCore.pyqtSlot()
+	def pushButton_AR_onClick(self):
+		cv2.destroyAllWindows()
+		pyramid = [[3,3,-3], [1,1,0],[3,5,0],[5,1,0]]
+		pyramid = np.array(pyramid, dtype=np.float32)
+
+		#calibrate camera first
+		objp = np.zeros((8*11,3), np.float32)
+		objp[:,:2] = np.mgrid[0:11,0:8].T.reshape(-1,2)
+
+		for i in range(1,6): # use bmp 1-5
+			objpoints = [] # 3d point in real world space
+			imgpoints = [] # 2d points in image plane.	
+			filename = './Datasets/Q3_Image/' + str(i) + '.bmp'
+			img = cv2.imread(filename)
+			gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+			ret, corners = cv2.findChessboardCorners(gray, (11,8),None)
+			if ret == True:
+				objpoints.append(objp)
+				imgpoints.append(corners)
+
+			ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, gray.shape[::-1],None,None)
+
+			#do projection
+			twodpro, jacobian = cv2.projectPoints(pyramid, rvecs[0], tvecs[0], mtx, dist)
+
+			#draw it on img
+
+			img	= cv2.line(img, tuple(twodpro[0][0]), tuple(twodpro[1][0]), (0, 0, 255), 5)
+			img	= cv2.line(img, tuple(twodpro[0][0]), tuple(twodpro[2][0]), (0, 0, 255), 5)
+			img	= cv2.line(img, tuple(twodpro[0][0]), tuple(twodpro[3][0]), (0, 0, 255), 5)
+			#triangle
+			img	= cv2.line(img, tuple(twodpro[1][0]), tuple(twodpro[2][0]), (0, 0, 255), 5)
+			img	= cv2.line(img, tuple(twodpro[2][0]), tuple(twodpro[3][0]), (0, 0, 255), 5)
+			img	= cv2.line(img, tuple(twodpro[3][0]), tuple(twodpro[1][0]), (0, 0, 255), 5)
+			img = cv2.resize(img, (1024, 1024))  
+			cv2.imshow('result',img)
+			cv2.waitKey(500)
+
+	#4 disparity
+	#mouse click event
+	def mouse(self,event,x,y,flags,param):
+		if event == cv2.EVENT_LBUTTONDOWN: #checks mouse left button down condition
+			normdis = param
+			grayvalue = normdis[y,x,0]
+			cv2.rectangle(normdis, (1210, 860), (1410, 960), (255, 255, 255), -1)
+			baseline = 178
+			flen = 2826
+			cx = 123
+			depth = (baseline * flen) / (grayvalue + cx)
+			text1 = 'disparity = {value} pixels'.format(value = grayvalue.astype(int))
+			text2 = 'depth = {value} mm'.format(value = depth.astype(int))
+			cv2.putText(normdis, text1, (1230, 890), cv2.FONT_HERSHEY_SIMPLEX,0.5, (0, 0, 255), 1)
+			cv2.putText(normdis, text2, (1230, 920), cv2.FONT_HERSHEY_SIMPLEX,0.5, (0, 0, 255), 1)
+
+
+	@QtCore.pyqtSlot()
+	def pushButton_DisMap_onClick(self):
+		cv2.destroyAllWindows()	
+		imgL = cv2.imread('./Datasets/Q4_Image/imgL.png')
+		imgR = cv2.imread('./Datasets/Q4_Image/imgR.png')
+		imgL = cv2.cvtColor(imgL,cv2.COLOR_BGR2GRAY)
+		imgR = cv2.cvtColor(imgR,cv2.COLOR_BGR2GRAY)
+
+		stereo = cv2.StereoBM_create(numDisparities=256, blockSize=21)
+		disparity = stereo.compute(imgL,imgR)
+		disparity = abs(disparity)
+		normdis = disparity / disparity.max() * 255 # normalize
+		normdis  = normdis.astype('uint8')
+		normdis = cv2.resize(normdis, (1410, 960))
+		normdis = cv2.cvtColor(normdis,cv2.COLOR_GRAY2BGR)
+		cv2.namedWindow('disparity map')
+		cv2.setMouseCallback('disparity map',self.mouse,param = normdis)
+
+		while(1):
+			cv2.imshow('disparity map',normdis)
+			if cv2.waitKey(20) & 0xFF == 27:
+				break
+
+		#if esc pressed, finish.
+		cv2.destroyAllWindows()
 
 if __name__ == "__main__": #main function
 	def run_app():
