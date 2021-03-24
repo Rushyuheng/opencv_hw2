@@ -14,6 +14,7 @@ class MainUi(QtWidgets.QMainWindow):
 		QtWidgets.QMainWindow.__init__(self)
 		uic.loadUi('./ui/main.ui', self)
 		self.iniGuiEvent()
+		self.model = models.load_model('./my_model.h5')#load model
 
 
 	def iniGuiEvent(self):# connect all button to all event slot
@@ -25,6 +26,10 @@ class MainUi(QtWidgets.QMainWindow):
 		self.pushButton_Dist.clicked.connect(self.pushButton_Dist_onClick)
 		self.pushButton_AR.clicked.connect(self.pushButton_AR_onClick)
 		self.pushButton_DisMap.clicked.connect(self.pushButton_DisMap_onClick)
+		self.pushButton_Train.clicked.connect(self.pushButton_Train_onClick)
+		self.pushButton_test.clicked.connect(self.pushButton_test_onClick)
+		self.pushButton_TensorB.clicked.connect(self.pushButton_TensorB_onClick)
+		self.pushButton_DataAug.clicked.connect(self.pushButton_DataAug_onClick)
 
 	#1.1 draw contour
 	@QtCore.pyqtSlot()
@@ -191,15 +196,15 @@ class MainUi(QtWidgets.QMainWindow):
 		if event == cv2.EVENT_LBUTTONDOWN: #checks mouse left button down condition
 			normdis = param
 			grayvalue = normdis[y,x,0]
-			cv2.rectangle(normdis, (1210, 860), (1410, 960), (255, 255, 255), -1)
+			cv2.rectangle(normdis, (505, 380), (705, 480), (255, 255, 255), -1)
 			baseline = 178
 			flen = 2826
 			cx = 123
 			depth = (baseline * flen) / (grayvalue + cx)
 			text1 = 'disparity = {value} pixels'.format(value = grayvalue.astype(int))
 			text2 = 'depth = {value} mm'.format(value = depth.astype(int))
-			cv2.putText(normdis, text1, (1230, 890), cv2.FONT_HERSHEY_SIMPLEX,0.5, (0, 0, 255), 1)
-			cv2.putText(normdis, text2, (1230, 920), cv2.FONT_HERSHEY_SIMPLEX,0.5, (0, 0, 255), 1)
+			cv2.putText(normdis, text1, (505, 400), cv2.FONT_HERSHEY_SIMPLEX,0.5, (0, 0, 255), 1)
+			cv2.putText(normdis, text2, (505, 440), cv2.FONT_HERSHEY_SIMPLEX,0.5, (0, 0, 255), 1)
 
 
 	@QtCore.pyqtSlot()
@@ -215,7 +220,7 @@ class MainUi(QtWidgets.QMainWindow):
 		disparity = abs(disparity)
 		normdis = disparity / disparity.max() * 255 # normalize
 		normdis  = normdis.astype('uint8')
-		normdis = cv2.resize(normdis, (1410, 960))
+		normdis = cv2.resize(normdis, (705, 480))#1410 960
 		normdis = cv2.cvtColor(normdis,cv2.COLOR_GRAY2BGR)
 		cv2.namedWindow('disparity map')
 		cv2.setMouseCallback('disparity map',self.mouse,param = normdis)
@@ -228,6 +233,48 @@ class MainUi(QtWidgets.QMainWindow):
 		#if esc pressed, finish.
 		cv2.destroyAllWindows()
 
+	# 5.1 ResNet50
+	@QtCore.pyqtSlot()
+	def pushButton_Train_onClick(self):
+		cv2.destroyAllWindows()
+		result = cv2.imread('./trainacc.png')
+		cv2.imshow('train accuracy',result)
+		
+	# 5.2 tensorboard
+	@QtCore.pyqtSlot()
+	def pushButton_TensorB_onClick(self):
+		cv2.destroyAllWindows()
+		result = cv2.imread('./tensorboardresult.png')
+		cv2.imshow('tensorboard result',result)
+
+	# 5.3 testing
+	@QtCore.pyqtSlot()
+	def pushButton_test_onClick(self):
+		cv2.destroyAllWindows()
+		index = random.randint(0,12500)
+		cata = random.choice(['Cat/','Dog/'])
+		img = cv2.imread('./Datasets/PetImages/' + cata + str(index) + '.jpg')
+		testimg = cv2.resize(img, dsize=(224, 224))
+		testimg = cv2.normalize(testimg, None, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
+		testimg = cv2.cvtColor(testimg, cv2.COLOR_RGB2BGR)
+		testimg = np.expand_dims(testimg, axis=0)
+
+		predictions = self.model.predict(testimg.astype('float32')) #normalize
+		category = ['Cat','Dog'] # label to name
+		#show test img and prediction
+		res = cv2.resize(img, dsize=(224, 224))
+		cv2.imshow('predictions = ' + category[np.argmax(predictions)],res)
+
+	# 5.4 data argument
+	@QtCore.pyqtSlot()
+	def pushButton_DataAug_onClick(self):
+		cv2.destroyAllWindows()
+		result = cv2.imread('./aug.png')
+		cv2.imshow('data argument',result)
+
+		
+
+		
 if __name__ == "__main__": #main function
 	def run_app():
 		app = QtWidgets.QApplication(sys.argv)
